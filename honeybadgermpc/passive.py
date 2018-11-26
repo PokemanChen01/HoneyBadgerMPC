@@ -399,7 +399,7 @@ async def unbounded_fan_in_and(context, a):
         A = A + i
 
 
-async def equality(context, share_p, share_q):
+async def equality(context, p_share, q_share):
 
     def legendre_mod_p(a):
         """Return the legendre symbol ``legendre(a, p)`` where *p* is the
@@ -414,7 +414,7 @@ async def equality(context, share_p, share_q):
             return -1
         return 0
 
-    a = share_p - share_q
+    diff_a = p_share - q_share
     k = security_parameter
 
     def mul(x, y):
@@ -434,16 +434,16 @@ async def equality(context, share_p, share_q):
         # If b_i == 1 c_i will always be a square modulo p if a is
         # zero and with probability 1/2 otherwise (except if rp == 0).
         # If b_i == -1 it will be non-square.
-        _c = await mul(a, _r) + await mul(_b, await mul(_rp, _rp))
+        _c = await mul(diff_a, _r) + await mul(_b, await mul(_rp, _rp))
         c = await _c.open()
 
         return c, _b
 
     async def gen_test_bit():
-        while 1:
+        cj, bj = await _gen_test_bit()
+        while cj == 0:
             cj, bj = await _gen_test_bit()
-            if cj != 0:
-                break
+        # bj.open() \in {5, 1}
 
         legendre = legendre_mod_p(cj)
 
@@ -451,8 +451,9 @@ async def equality(context, share_p, share_q):
             xj = (1 / Field(2)) * (bj + context.Share(1))
         elif legendre == -1:
             xj = (-1) * (1 / Field(2)) * (bj - context.Share(1))
+        else:
+            gen_test_bit()
 
-        # print("xj: ", xj, type(xj))
         return xj
 
     x = [await gen_test_bit() for _ in range(k)]
@@ -462,22 +463,30 @@ async def equality(context, share_p, share_q):
     while len(x) > 1:
         x.append(await mul(x.pop(0), x.pop(0)))
 
-    return await (x[0]).open()
-    # return x[0]
+    return await x[0].open()
 
 
 async def test_equality(context):
-    p = context.get_zero() + context.Share(10)
-    q = context.get_zero() + context.Share(10)
-
-    fake = await (p - q).open()
-    print("fake: ", fake, "\ntype(fake): ", type(fake))
-
+    p = context.get_zero() + context.Share(2333)
+    q = context.get_zero() + context.Share(2333)
+    
     result = await equality(context, p, q)
-    print("result: ", result)
-    # print("result: ", await result.open())
 
- 
+    if result == 0:
+        print("The two numbers are different! (with high probability)")
+    else:
+        print("The two numbers are equal!")
+
+
+async def comparison(context, p_share, q_share):
+    pass
+
+
+async def test_comparison(context):
+    pass
+
+
+
 # Run some test cases
 if __name__ == '__main__':
     print('Generating random shares of zero in sharedata/')
